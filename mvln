@@ -1,0 +1,133 @@
+#!/bin/sh
+# mvln
+
+VERSION='1.0.0'
+
+mvln_main() {
+	trap _exit INT TERM
+
+	e_args=16
+	e_missing_app=17
+
+	scriptinv="$( basename "$0" )"
+	scriptpath="$( readlink -f "$0" )"
+	scriptname="$( basename "$scriptpath" )"
+
+	while getopts hv opt
+	do
+		case $opt in
+			h) cmd=help ;;
+			v) cmd=version ;;
+			*) _invalid_opt "$opt" ;;
+		esac
+	done
+
+	shift "$(( OPTIND - 1 ))"
+
+	[ -z "$cmd" ] && [ $# -lt 1 ] && cmd=help
+	[ -z "$cmd" ] && cmd=process
+
+	case "$cmd" in
+		help|process|version) "mvln_$cmd" "$@" ;;
+		*) _invalid_cmd ;;
+	esac
+
+	_exit
+}
+
+mvln_help() {
+cat <<USAGE
+$scriptname $VERSION
+
+USAGE: $scriptinv [<options>] <src1> [<src2>...] <dest>
+
+Move source files and directories to target and leave symlinks their place.
+
+OPTIONS:
+
+	-h        Show this help screen.
+	-v        Show version.
+
+USAGE
+}
+
+mvln_process() {
+	_require realpath
+
+	dest=
+
+	for i
+	do
+		dest="$i"
+	done
+
+	while [ $# -gt 1 ]
+	do
+		src="$1"
+		shift
+
+		[ -d "$dest" ] && dest="$dest/$( basename "$src" )"
+
+		mv -v "$src" "$dest"
+
+		target="$( realpath "$dest" --relative-to="$( dirname "$src" )" )"
+
+		ln -s "$target" "$src"
+	done
+}
+
+mvln_version() {
+	echo "$scriptname $VERSION"
+}
+
+_echo() {
+	echo "$@"
+}
+
+_error() {
+	_echo "$@" >&2
+}
+
+_exit() {
+	exit_code=$?
+	exit $exit_code
+}
+
+_exit() {
+	exit_code=$?
+	exit $exit_code
+}
+
+_invalid_cmd() {
+	_error "Invalid command: $cmd"
+	_echo
+	mvln_help
+	exit $e_args
+}
+
+_invalid_opt() {
+	_error "Invalid option: $opt"
+	_echo
+	mvln_help
+	exit $e_args
+}
+
+_require() {
+	missing_bin=0
+
+	for bin in "$@"
+	do
+		if ! which "$bin" > /dev/null 2>&1
+		then
+			missing_bin=1
+			_error "Required: $bin"
+		fi
+	done
+
+	if [ $missing_bin -ne 0 ]
+	then
+		_fatal "$e_missing_app" "One or more executables or apps are missing."
+	fi
+}
+
+mvln_main "$@"
